@@ -7,6 +7,14 @@ from io import BytesIO
 import sys
 
 class Card():
+	"""
+	Simple class to keep card data in one place
+
+	name = name of the card; string
+	price = price of the card; string
+	image = card image; ImageTk 
+	"""
+
 	def __init__(self, name=None, price=None, image=None):
 		self.name = name
 		self.price = price
@@ -34,26 +42,8 @@ def create_table(conn, create_table_sql):
 	except Error as e:
 		print(e)
 
-def push_to_collection():
-	global currentCard
-
-	db = "testdb.db"
-	conn = create_connection(db)
-
-	sql = """INSERT INTO collection(name, price, image)
-			 VALUES(?,?,?)"""
-
-	a = (currentCard.name, currentCard.price, currentCard.image)
-	
-	cur = conn.cursor()
-	cur.execute(sql, a)
-	conn.commit()
-
-	print(cur.lastrowid)
-	return cur.lastrowid
-
-def query_first(conn):
-	sql = """SELECT * FROM collection WHERE id=1;"""
+def query_all(conn):
+	sql = """SELECT * FROM collection;"""
 
 	cur = conn.cursor()
 	cur.execute(sql)
@@ -96,28 +86,89 @@ def mainSQL():
 def test():
 	print("Test")
 
-def searchCard():
-	card = requests.get("https://api.scryfall.com/cards/named?fuzzy={}".format(searchTxt.get())).json()
+def collectionWindow():
+	top = tk.Toplevel()
+	top.title("About this application...")
+
+	msg = tk.Message(top, text="Coolection")
+	msg.pack()
+
+	db = "testdb.db"
+	conn = create_connection(db)
+	for i in query_all(conn):
+		print(i[1])
+
+	button = tk.Button(top, text="Dismiss", command=top.destroy)
+	button.pack()
+
+class MainWindow(tk.Frame):
+	def __init__(self, parent, *args, **kwargs):
+		tk.Frame.__init__(self, parent, *args, **kwargs)
+		
+		self.parent = parent
+		parent.title = "Amazing app"
+
+		self.db = "testdb.db"
+
+		self.test = 'Test'
+
+		self.currentCard = Card()
+
+		self.searchTxt = tk.Entry(root)
+		self.searchTxt.grid(row=0, column=0,sticky=tk.W+tk.E+tk.N+tk.S)
+
+		tk.Button(root, text="Search", command=self.searchCard).grid(row=0, column=1,sticky=tk.W+tk.E+tk.N+tk.S)
+		tk.Button(root, text="Save to DB", command=self.push_to_collection).grid(row=1, sticky=tk.W+tk.E+tk.N+tk.S)
+		tk.Button(root, text='Quit', command=root.destroy).grid(row=1, column=1, sticky=tk.W+tk.E+tk.N+tk.S)
+
+		tk.Button(root, text='C', command=self.c).grid(row=2, column=0, sticky=tk.W+tk.E+tk.N+tk.S)
+		tk.Button(root, text='P', command=self.p).grid(row=2, column=1, sticky=tk.W+tk.E+tk.N+tk.S)
 	
-	#crashes if card not found
-	global currentCard
-	currentCard.name = card["name"]
-	currentCard.price = card['prices']['eur']
-	currentCard.image = requests.get(card["image_uris"]["small"]).content
+	def searchCard(self):
+		query = self.searchTxt.get()
+		searchedCard = requests.get(f"https://api.scryfall.com/cards/named?fuzzy={query}").json()
+	
+		#crashes if card not found
+		self.currentCard.name = searchedCard["name"]
+		self.currentCard.price = searchedCard['prices']['eur']
+		
+		self.currentCardImageBytes = requests.get(searchedCard["image_uris"]["small"]).content
+		self.currentCard.image = ImageTk.PhotoImage(Image.open(BytesIO(self.currentCardImageBytes)))
 
-	i = ImageTk.PhotoImage(Image.open(BytesIO(currentCard.image)))
+		tk.Button(self.parent, image=self.currentCard.image).grid(row=3, rowspan=2)
 
-	global imgRefs
-	imgRefs.append(i)
+		tk.Label(self.parent, text=self.currentCard.name).grid(row=3, column=1)
+		tk.Label(self.parent, text=f"{self.currentCard.price}\u20AC").grid(row=4, column=1)
 
-	tk.Button(root, image=i).grid(row=2, rowspan=2)
+	def push_to_collection(self):
+		conn = create_connection(self.db)
 
-	tk.Label(root, text=currentCard.name).grid(row=2, column=1)
-	tk.Label(root, text="{}\u20AC".format(currentCard.price)).grid(row=3, column=1)
+		sql = """INSERT INTO collection(name, price, image)
+				 VALUES(?,?,?)"""
+
+		a = (self.currentCard.name, self.currentCard.price, self.currentCardImageBytes)
+		
+		cur = conn.cursor()
+		cur.execute(sql, a)
+		conn.commit()
+
+		print(cur.lastrowid)
+
+	def c(self):
+		self.test = "Changed"
+
+	def p(self):
+		print(sys.getsizeof(self.currentCardImageBytes))
+		print(sys.getsizeof(self.currentCard.image))
+
+		print(self.test)
+
 
 if __name__ == '__main__':
 	"""TODO:
 	-save img to db on img click
+	-relationship database za slike
+	-save bulk data locally
 	"""
 	currentCard = Card("Burgeoning", "5.28")
 
@@ -126,18 +177,5 @@ if __name__ == '__main__':
 
 
 	root = tk.Tk()
-	root.title("Amazing app")
-
-	searchTxt = tk.Entry(root)
-	searchTxt.grid(row=0, column=0,sticky=tk.W+tk.E+tk.N+tk.S)
-
-	tk.Button(root, text="Search", command=searchCard).grid(row=0, column=1,sticky=tk.W+tk.E+tk.N+tk.S)
-	tk.Button(root, text="Tester", command=push_to_collection).grid(row=1, sticky=tk.W+tk.E+tk.N+tk.S)
-	tk.Button(root, text='Quit', command=root.destroy).grid(row=1, column=1, sticky=tk.W+tk.E+tk.N+tk.S)
-
-	# i = ImageTk.PhotoImage(Image.open("t.jpg"))
-	
-	# cardButton = tk.Button(root, image=i)
-	# cardButton.grid(row=2, columnspan=2)
-
+	MainWindow(root).grid()
 	root.mainloop()

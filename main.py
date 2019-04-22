@@ -8,11 +8,21 @@ import sys
 
 class Card():
 	"""
-	Simple class to keep card data in one place
+	A class used to represent a card.
+	
+	...
+	
+	Attributes:
+	----------
+	name : str
+		The name of the card. (Default None)
 
-	name = name of the card; string
-	price = price of the card; string
-	image = card image; ImageTk 
+	price : str
+		The price of the card. (Default None)
+
+	image : ImageTk
+		The card image saved as ImageTK. (Default None)
+	
 	"""
 
 	def __init__(self, name=None, price=None, image=None):
@@ -22,16 +32,27 @@ class Card():
 
 
 def create_connection(db_file):
-	#create db connection to sqlite3 db
-	#creates db if missing
+	"""
+	Creates connection to database file.
+	Creates database file if it's missing.
+
+	Parameters:
+	----------
+	db_file: str
+		Path to database file in string.
+
+	Returns:
+	----------
+	sqlite3 connection object.
+	If error is raised returns None.
+
+	"""
 
 	try:
 		conn = sqlite3.connect(db_file)
 		return conn
 	except Error as e:
 		print(e)
-	#finally:
-		#conn.close()
 
 	return None
 
@@ -51,7 +72,7 @@ def query_all(conn):
 	return cur.fetchall()
 
 
-def mainSQL():
+def sql_setup():
 	db = "testdb.db"
 
 	sql_collection_table = """ CREATE TABLE IF NOT EXISTS collection (
@@ -67,26 +88,11 @@ def mainSQL():
 		create_table(conn, sql_collection_table)
 	conn.close()
 
-		# with open("c16-143-burgeoning.jpg", 'rb') as image:
-		# 	f = image.read()
-		# 	im = bytes(f)
-		
-		# 	card = ('Burgeoning', '5', im)
-		# 	push_to_collection(conn, card)
-
-		# for i in query_first(conn): 
-		# 	print(type(i[3]))
-		# 	print(type(BytesIO(i[3])))
-
-		# 	#for some reason rabim buffer ˇ
-		# 	#!!ask slak
-		# 	im = Image.open(BytesIO(i[3]))
-		# 	#im.show()
-
-def test():
-	print("Test")
-
 def collectionWindow():
+	"""
+	Work in progress.
+	Will be it's own class.
+	"""
 	top = tk.Toplevel()
 	top.title("About this application...")
 
@@ -117,14 +123,14 @@ class MainWindow(tk.Frame):
 		self.searchTxt = tk.Entry(root)
 		self.searchTxt.grid(row=0, column=0,sticky=tk.W+tk.E+tk.N+tk.S)
 
-		tk.Button(root, text="Search", command=self.searchCard).grid(row=0, column=1,sticky=tk.W+tk.E+tk.N+tk.S)
+		tk.Button(root, text="Search", command=self.search_card).grid(row=0, column=1,sticky=tk.W+tk.E+tk.N+tk.S)
 		tk.Button(root, text="Save to DB", command=self.push_to_collection).grid(row=1, sticky=tk.W+tk.E+tk.N+tk.S)
 		tk.Button(root, text='Quit', command=root.destroy).grid(row=1, column=1, sticky=tk.W+tk.E+tk.N+tk.S)
 
 		tk.Button(root, text='C', command=self.c).grid(row=2, column=0, sticky=tk.W+tk.E+tk.N+tk.S)
 		tk.Button(root, text='P', command=self.p).grid(row=2, column=1, sticky=tk.W+tk.E+tk.N+tk.S)
 	
-	def searchCard(self):
+	def search_card(self):
 		query = self.searchTxt.get()
 		searchedCard = requests.get(f"https://api.scryfall.com/cards/named?fuzzy={query}").json()
 	
@@ -170,11 +176,7 @@ if __name__ == '__main__':
 	-relationship database za slike
 	-save bulk data locally
 	"""
-	currentCard = Card("Burgeoning", "5.28")
-
-	mainSQL()
-	imgRefs = []
-
+	sql_setup()
 
 	root = tk.Tk()
 	MainWindow(root).grid()

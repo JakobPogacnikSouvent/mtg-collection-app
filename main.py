@@ -1,7 +1,6 @@
 import tkinter as tk
 import requests
 import sqlite3
-from sqlite3 import Error
 from PIL import ImageTk, Image
 from io import BytesIO
 import sys
@@ -51,7 +50,8 @@ def create_connection(db_file):
 	try:
 		conn = sqlite3.connect(db_file)
 		return conn
-	except Error as e:
+	except sqlite3.Error as e:
+		#TkMessagebox
 		print(e)
 
 	return None
@@ -60,7 +60,7 @@ def create_table(conn, create_table_sql):
 	try:
 		c = conn.cursor()
 		c.execute(create_table_sql)
-	except Error as e:
+	except sqlite3.Error as e:
 		print(e)
 
 def query_all(conn):
@@ -73,7 +73,7 @@ def query_all(conn):
 
 
 def sql_setup():
-	db = "testdb.db"
+	DB = "testdb.db"
 
 	sql_collection_table = """ CREATE TABLE IF NOT EXISTS collection (
 									id integer PRIMARY KEY,
@@ -82,7 +82,7 @@ def sql_setup():
 									image blob
 								);"""
 
-	conn = create_connection(db)
+	conn = create_connection(DB)
 
 	with conn:
 		create_table(conn, sql_collection_table)
@@ -99,38 +99,93 @@ def collectionWindow():
 	msg = tk.Message(top, text="Coolection")
 	msg.pack()
 
-	db = "testdb.db"
-	conn = create_connection(db)
-	for i in query_all(conn):
-		print(i[1])
+	# db = "testdb.db"
+	# conn = create_connection(db)
+	# for i in query_all(conn):
+	# 	print(i[1])
 
 	button = tk.Button(top, text="Dismiss", command=top.destroy)
 	button.pack()
 
-class MainWindow(tk.Frame):
+class CollectionWindow(tk.Frame):
 	def __init__(self, parent, *args, **kwargs):
 		tk.Frame.__init__(self, parent, *args, **kwargs)
-		
+
 		self.parent = parent
-		parent.title = "Amazing app"
+			
+		self.images = []
 
-		self.db = "testdb.db"
+		self.canvas=tk.Canvas(self.parent, background="blue")
+		self.canvas_frame=tk.Frame(self.canvas)
 
-		self.test = 'Test'
+		self.scrollbar = tk.Scrollbar(self.parent,orient="vertical",command=self.canvas.yview)
+		self.canvas.configure(yscrollcommand=self.scrollbar.set)
+
+		self.canvas.grid(row=0, column=0)
+		self.scrollbar.grid(row=0, column=1, sticky=tk.N+tk.S)
+		self.canvas.create_window((0,0),window=self.canvas_frame)
+
+		self.canvas_frame.bind("<Configure>",self.myfunction)
+
+		self.create_buttons()
+		
+		tk.Button(self.parent, text='Quit', command=self.parent.destroy).grid(row=1, column=0)
+
+	def myfunction(self, event):
+		self.canvas.configure(scrollregion=self.canvas.bbox("all"), width=event.width, height=100)
+
+
+	def create_buttons(self):
+		conn = create_connection("testdb.db")
+		cur = conn.cursor()
+		cur.execute("SELECT * FROM collection;")
+		for row in cur:
+			i, name, price, img = row
+			if not img: continue
+			if i > 5: break
+			pic = ImageTk.PhotoImage(Image.open(BytesIO(img)))
+			self.images.append(pic)
+			tk.Button(self.canvas_frame, text=name, image=pic).grid()
+
+
+
+class MainWindow(tk.Frame):
+	
+	#class variable ˇ samo enkrat, za vse classe
+	DB = "testdb.db"
+	
+	def __init__(self, parent, *args, **kwargs):
+		tk.Frame.__init__(self, parent, *args, **kwargs)
+		#super
+
+		parent.title("Test")
+		parent.bind("<Configure>", self.test)
+		self.parent = parent
+
+		"""
+		try:
+			self.conn = sqlite3 connection
+		except sqlite3.Error:
+			TkMessagebox
+			#Display error
+
+		"""
 
 		self.currentCard = Card()
 
-		self.searchTxt = tk.Entry(root)
+		self.searchTxt = tk.Entry(self.parent)
 		self.searchTxt.grid(row=0, column=0,sticky=tk.W+tk.E+tk.N+tk.S)
 
-		tk.Button(root, text="Search", command=self.search_card).grid(row=0, column=1,sticky=tk.W+tk.E+tk.N+tk.S)
-		tk.Button(root, text="Save to DB", command=self.push_to_collection).grid(row=1, sticky=tk.W+tk.E+tk.N+tk.S)
-		tk.Button(root, text='Quit', command=root.destroy).grid(row=1, column=1, sticky=tk.W+tk.E+tk.N+tk.S)
+		tk.Button(self.parent, text="Search", command=self.search_card).grid(row=0, column=1,sticky=tk.W+tk.E+tk.N+tk.S)
+		tk.Button(self.parent, text="Save to DB", command=self.push_to_collection).grid(row=1, sticky=tk.W+tk.E+tk.N+tk.S)
+		tk.Button(self.parent, text='Quit', command=self.parent.destroy).grid(row=1, column=1, sticky=tk.W+tk.E+tk.N+tk.S)
 
-		tk.Button(root, text='C', command=self.c).grid(row=2, column=0, sticky=tk.W+tk.E+tk.N+tk.S)
-		tk.Button(root, text='P', command=self.p).grid(row=2, column=1, sticky=tk.W+tk.E+tk.N+tk.S)
-	
+		tk.Button(self.parent, text='C', command=self.create_window).grid(row=2, column=0, sticky=tk.W+tk.E+tk.N+tk.S)
+		tk.Button(self.parent, text='P', command=self.p).grid(row=2, column=1, sticky=tk.W+tk.E+tk.N+tk.S)
+
+
 	def search_card(self):
+		""" """
 		query = self.searchTxt.get()
 		searchedCard = requests.get(f"https://api.scryfall.com/cards/named?fuzzy={query}").json()
 	
@@ -147,27 +202,28 @@ class MainWindow(tk.Frame):
 		tk.Label(self.parent, text=f"{self.currentCard.price}\u20AC").grid(row=4, column=1)
 
 	def push_to_collection(self):
-		conn = create_connection(self.db)
+		conn = create_connection(self.DB)
 
 		sql = """INSERT INTO collection(name, price, image)
 				 VALUES(?,?,?)"""
 
-		a = (self.currentCard.name, self.currentCard.price, self.currentCardImageBytes)
+		cardData = (self.currentCard.name, self.currentCard.price, self.currentCardImageBytes)
 		
 		cur = conn.cursor()
-		cur.execute(sql, a)
+		cur.execute(sql, cardData)
 		conn.commit()
 
 		print(cur.lastrowid)
 
-	def c(self):
-		self.test = "Changed"
+	def test(self, tkConfigureEvent):
+		print(tkConfigureEvent)
+		print(type(tkConfigureEvent))
 
 	def p(self):
-		print(sys.getsizeof(self.currentCardImageBytes))
-		print(sys.getsizeof(self.currentCard.image))
+		self.x.parent.destroy()
 
-		print(self.test)
+	def create_window(self):
+		self.x = CollectionWindow(tk.Toplevel(self.parent))
 
 
 if __name__ == '__main__':
@@ -180,4 +236,10 @@ if __name__ == '__main__':
 
 	root = tk.Tk()
 	MainWindow(root).grid()
-	root.mainloop()
+
+	try:
+		root.mainloop()
+	except Exception as e:
+		print(e)
+		#print whole traceback
+		#import traceback

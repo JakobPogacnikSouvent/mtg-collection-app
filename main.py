@@ -10,18 +10,13 @@ class Card():
 	"""
 	A class used to represent a card.
 	
-	...
-	
 	Attributes:
-	----------
-	name : str
-		The name of the card. (Default None)
-
-	price : str
-		The price of the card. (Default None)
-
-	image : ImageTk
-		The card image saved as ImageTK. (Default None)
+		-name : str
+			The name of the card. (Default None)
+		-price : str
+			The price of the card. (Default None)
+		-image : ImageTk
+			The card image saved as ImageTK. (Default None)
 	
 	"""
 
@@ -37,15 +32,13 @@ def create_connection(db_file):
 	Creates database file if it's missing.
 
 	Parameters:
-	----------
-	db_file: str
-		Path to database file in string.
+		-db_file: str
+			Path to database file in string.
 
 	Returns:
-	----------
-	sqlite3 connection object.
-	If error is raised returns None.
-
+		-sqlite3 connection object.
+		OR
+		-None if error is raised.
 	"""
 
 	try:
@@ -140,6 +133,7 @@ class CollectionWindow(tk.Frame):
 
 
 class MainWindow(tk.Frame):
+	#TODO: deprecate self.currentCard (will only be saving relation)
 	
 	#class variable ˇ samo enkrat, za vse classe
 	DB = "testdb.db"
@@ -159,7 +153,6 @@ class MainWindow(tk.Frame):
 		except sqlite3.Error:
 			TkMessagebox
 			#Display error
-
 		"""
 
 		self.currentCard = Card()
@@ -175,10 +168,11 @@ class MainWindow(tk.Frame):
 		tk.Button(self.parent, text='Search DB', command=self.search_card_local_db).grid(row=2, column=1, sticky=tk.W+tk.E+tk.N+tk.S)
 
 	def search_card_local_db(self):
-		#1. find id from all
-		#2. dl pic if not exists
-		#	3. create relation in my db if click on card
+		"""
+		Searches card in local db and displays it as a button.
 
+		Uses image bytes in db to display image. Will find and save image if not exists.
+		"""
 
 		start = time.time()
 
@@ -189,8 +183,6 @@ class MainWindow(tk.Frame):
 		
 		end = time.time()
 		print(end-start)
-
-		#if not image fetch
 
 		id_, name, front_image_link, back_image_link, front_image_bytes, back_image_bytes = results.fetchall()[0] #Returns list of all versions of card
 
@@ -208,7 +200,6 @@ class MainWindow(tk.Frame):
 		tk.Button(self.parent, image=self.currentCard.image).grid(row=3, rowspan=2)
 
 		#id, name, *rest = results.fetchall()[0]
-		
 		#tk.Button(self.parent, text=name, command=lambda:print(rest)).grid(row=3, rowspan=2)
 
 	def insert_image_bytes(self, id_, front_image_bytes, back_image_bytes):
@@ -221,6 +212,7 @@ class MainWindow(tk.Frame):
 		conn.commit()
 
 	def search_card_scryfall(self):
+		#TODO: deprecate
 		start = time.time()
 
 		query = self.searchTxt.get()
@@ -244,6 +236,7 @@ class MainWindow(tk.Frame):
 
 
 	def push_to_collection(self):
+		#TODO: collection will only be a pointer
 		conn = create_connection(self.DB)
 
 		sql = """INSERT INTO collection(name, price, image)
@@ -271,8 +264,7 @@ class MainWindow(tk.Frame):
 if __name__ == '__main__':
 	"""TODO:
 	-save img to db on img click
-	-finish card DB
-	-one to many relation
+	-!one to many relation
 	"""
 	sql_setup()
 

@@ -4,6 +4,7 @@ import sqlite3
 from PIL import ImageTk, Image
 from io import BytesIO
 import sys
+import time
 
 class Card():
 	"""
@@ -71,6 +72,15 @@ def query_all(conn):
 
 	return cur.fetchall()
 
+def query_by_name(conn, name, table="Card"):
+	sql = f"""SELECT * FROM {table} WHERE name=\'{name}\'"""
+		
+	cur = conn.cursor()
+	
+	print(sql)
+	cur.execute(sql)
+
+	return cur
 
 def sql_setup():
 	DB = "testdb.db"
@@ -87,25 +97,6 @@ def sql_setup():
 	with conn:
 		create_table(conn, sql_collection_table)
 	conn.close()
-
-def collectionWindow():
-	"""
-	Work in progress.
-	Will be it's own class.
-	"""
-	top = tk.Toplevel()
-	top.title("About this application...")
-
-	msg = tk.Message(top, text="Coolection")
-	msg.pack()
-
-	# db = "testdb.db"
-	# conn = create_connection(db)
-	# for i in query_all(conn):
-	# 	print(i[1])
-
-	button = tk.Button(top, text="Dismiss", command=top.destroy)
-	button.pack()
 
 class CollectionWindow(tk.Frame):
 	def __init__(self, parent, *args, **kwargs):
@@ -142,7 +133,6 @@ class CollectionWindow(tk.Frame):
 		for row in cur:
 			i, name, price, img = row
 			if not img: continue
-			if i > 5: break
 			pic = ImageTk.PhotoImage(Image.open(BytesIO(img)))
 			self.images.append(pic)
 			tk.Button(self.canvas_frame, text=name, image=pic).grid()
@@ -153,6 +143,7 @@ class MainWindow(tk.Frame):
 	
 	#class variable ˇ samo enkrat, za vse classe
 	DB = "testdb.db"
+	ALL_CARDS_DB = "minimal.db"
 	
 	def __init__(self, parent, *args, **kwargs):
 		tk.Frame.__init__(self, parent, *args, **kwargs)
@@ -176,30 +167,81 @@ class MainWindow(tk.Frame):
 		self.searchTxt = tk.Entry(self.parent)
 		self.searchTxt.grid(row=0, column=0,sticky=tk.W+tk.E+tk.N+tk.S)
 
-		tk.Button(self.parent, text="Search", command=self.search_card).grid(row=0, column=1,sticky=tk.W+tk.E+tk.N+tk.S)
+		tk.Button(self.parent, text="Search SF", command=self.search_card_scryfall).grid(row=0, column=1,sticky=tk.W+tk.E+tk.N+tk.S)
 		tk.Button(self.parent, text="Save to DB", command=self.push_to_collection).grid(row=1, sticky=tk.W+tk.E+tk.N+tk.S)
 		tk.Button(self.parent, text='Quit', command=self.parent.destroy).grid(row=1, column=1, sticky=tk.W+tk.E+tk.N+tk.S)
 
 		tk.Button(self.parent, text='C', command=self.create_window).grid(row=2, column=0, sticky=tk.W+tk.E+tk.N+tk.S)
-		tk.Button(self.parent, text='P', command=self.p).grid(row=2, column=1, sticky=tk.W+tk.E+tk.N+tk.S)
+		tk.Button(self.parent, text='Search DB', command=self.search_card_local_db).grid(row=2, column=1, sticky=tk.W+tk.E+tk.N+tk.S)
+
+	def search_card_local_db(self):
+		#1. find id from all
+		#2. dl pic if not exists
+		#	3. create relation in my db if click on card
 
 
-	def search_card(self):
-		""" """
+		start = time.time()
+
+		query = self.searchTxt.get()
+		conn = create_connection(self.ALL_CARDS_DB)
+
+		results = query_by_name(conn, query)
+		
+		end = time.time()
+		print(end-start)
+
+		#if not image fetch
+
+		id_, name, front_image_link, back_image_link, front_image_bytes, back_image_bytes = results.fetchall()[0] #Returns list of all versions of card
+
+		try:
+			#TODO: multy faced cards
+			self.currentCard.image = ImageTk.PhotoImage(Image.open(BytesIO(front_image_bytes)))
+
+		except OSError:
+			#TODO: multy faced cards
+			front_image_bytes = requests.get(front_image_link).content
+			self.currentCard.image = ImageTk.PhotoImage(Image.open(BytesIO(front_image_bytes)))
+			self.insert_image_bytes(id_, front_image_bytes, back_image_bytes)
+
+
+		tk.Button(self.parent, image=self.currentCard.image).grid(row=3, rowspan=2)
+
+		#id, name, *rest = results.fetchall()[0]
+		
+		#tk.Button(self.parent, text=name, command=lambda:print(rest)).grid(row=3, rowspan=2)
+
+	def insert_image_bytes(self, id_, front_image_bytes, back_image_bytes):
+		conn = create_connection(self.ALL_CARDS_DB)
+		sql = """ UPDATE Card 
+				  SET front_image=?, back_image=? where id is ?;"""
+
+		cur = conn.cursor()
+		cur.execute(sql,(front_image_bytes, back_image_bytes, id_))
+		conn.commit()
+
+	def search_card_scryfall(self):
+		start = time.time()
+
 		query = self.searchTxt.get()
 		searchedCard = requests.get(f"https://api.scryfall.com/cards/named?fuzzy={query}").json()
-	
+		
+
 		#crashes if card not found
 		self.currentCard.name = searchedCard["name"]
 		self.currentCard.price = searchedCard['prices']['eur']
 		
 		self.currentCardImageBytes = requests.get(searchedCard["image_uris"]["small"]).content
 		self.currentCard.image = ImageTk.PhotoImage(Image.open(BytesIO(self.currentCardImageBytes)))
+		
+		end = time.time()
+		print(end-start)
 
 		tk.Button(self.parent, image=self.currentCard.image).grid(row=3, rowspan=2)
 
 		tk.Label(self.parent, text=self.currentCard.name).grid(row=3, column=1)
 		tk.Label(self.parent, text=f"{self.currentCard.price}\u20AC").grid(row=4, column=1)
+
 
 	def push_to_collection(self):
 		conn = create_connection(self.DB)
@@ -229,8 +271,8 @@ class MainWindow(tk.Frame):
 if __name__ == '__main__':
 	"""TODO:
 	-save img to db on img click
-	-relationship database za slike
-	-save bulk data locally
+	-finish card DB
+	-one to many relation
 	"""
 	sql_setup()
 

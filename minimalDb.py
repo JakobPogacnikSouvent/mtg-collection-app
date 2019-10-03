@@ -6,7 +6,7 @@ import requests
 import urllib
 
 def insert(data, conn):
-	sql = """INSERT INTO Card(name, front_side_link, back_side_link)
+	sql = """INSERT INTO Card(name, front_image, back_image)
 			 VALUES(?,?,?)"""
 
 	cur = conn.cursor()
@@ -37,9 +37,7 @@ def mainSQL(conn):
 	sql_collection_table = """ CREATE TABLE IF NOT EXISTS Card (
 									id integer PRIMARY KEY,
 									name text NOT NULL,
-									front_side_link text NOT NULL,
-									back_side_link text,
-									front_image blob,
+									front_image blob NOT NULL,
 									back_image blob
 								);"""
 
@@ -55,21 +53,40 @@ if __name__ == "__main__":
 	startTime = time.time()
 
 	with open("scryfall-default-cards.json", 'r') as file:
+		for _ in range(1): 
+			next(file)
+			print('Skipped')
 		for line in file:
-			cardData = json.loads(line.strip()[:-1])
+			try:
+				#Normally remove last char which is ,
+				cardData = json.loads(line.strip()[:-1])
 
+			except json.decoder.JSONDecodeError:
+				#Triggered on last two lines
+				
+				try:
+					#Second to last line does not have ,
+					cardData = json.loads(line.strip())
 
+				except json.decoder.JSONDecodeError:
+					#Triggered on very last line
+					break
 			#EAFP
 			try:
-				data = (cardData['name'], cardData['image_uris']['small'], None)
+				front_image = requests.get(cardData['image_uris']['small']).content
+				data = (cardData['name'], front_image, None)
 			
 			except KeyError:
 				#On double faced cards
-				data = (cardData['name'], cardData['card_faces'][0]['image_uris']['small'],cardData['card_faces'][1]['image_uris']['small'])
+				front_image = requests.get(cardData['card_faces'][0]['image_uris']['small']).content
+				back_image = requests.get(cardData['card_faces'][1]['image_uris']['small']).content
+				data = (cardData['name'], front_image, back_image)
 			
 			r = insert(data, conn)
+			conn.commit() #TODO: remove, commiting is slow
 
-			if (r/10000).is_integer():
+			if (r/1).is_integer():
 				print(f"----- {time.time()-startTime}")
 			
+	#Commiting is slow. Only do it once.	
 	conn.commit()
